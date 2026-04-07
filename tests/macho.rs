@@ -529,12 +529,9 @@ fn version() {
     let bytes = &DEADBEEF_MACH_64;
     let mach = Mach::parse(&bytes[..]).unwrap();
     let actual: version::Version = mach.into();
-    let expected = version::Version {
-        major: 10,
-        minor: 10,
-        patch: 0,
-    };
-    assert_eq!(actual, expected);
+    let expected = "10.10.0".parse::<version::Version>();
+    assert!(expected.is_ok()); // Test parsing strings
+    assert_eq!(actual, expected.unwrap()); // Test parsing binaries
 }
 
 #[test]
