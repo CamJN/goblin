@@ -525,6 +525,15 @@ fn parse_sections() {
 }
 
 #[test]
+fn version() {
+    let bytes = &DEADBEEF_MACH_64;
+    let mach = Mach::parse(&bytes[..]).unwrap();
+    let actual: version::Version = mach.into();
+    let expected = version::Version { major: 10, minor: 10, patch: 0 };
+    assert_eq!(actual, expected);
+}
+
+#[test]
 fn iter_symbols() {
     let bytes = &DEADBEEF_MACH_64;
     let mach = Mach::parse(&bytes[..]).unwrap();
