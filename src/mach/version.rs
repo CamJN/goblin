@@ -2,11 +2,13 @@
  * Copyright: see LICENSE file
  */
 
-use crate::error::Error;
-use crate::mach::cputype::{CPU_TYPE_ARM64, CPU_TYPE_X86_64};
+use crate::mach::MachO;
 use crate::mach::load_command::CommandVariant;
-use crate::mach::{Mach, MachO, SingleArch};
+
 if_std! {
+    use crate::mach::{Mach, SingleArch};
+    use crate::error::Error;
+    use crate::mach::cputype::{CPU_TYPE_ARM64, CPU_TYPE_X86_64};
     use std::cmp::Ordering;
     use std::collections::VecDeque;
     use std::str::FromStr;
@@ -18,6 +20,42 @@ pub struct Version {
     pub major: u32,
     pub minor: u32,
     pub patch: u32,
+}
+
+impl From<u32> for Version {
+    fn from(packed: u32) -> Self {
+        // X.Y.Z is encoded in nibbles xxxx.yy.zz
+        // 12.6 = 0b0000_0000_0000_1100_0000_0110_0000_0000
+        let major = (packed & 0b1111_1111_1111_1111_0000_0000_0000_0000u32) >> 16;
+        let minor = (packed & 0b0000_0000_0000_0000_1111_1111_0000_0000u32) >> 8;
+        let patch = (packed & 0b0000_0000_0000_0000_0000_0000_1111_1111u32) >> 0;
+        Self {
+            major,
+            minor,
+            patch,
+        }
+    }
+}
+
+impl From<MachO<'_>> for Version {
+    fn from(b: MachO) -> Self {
+        let packed = b
+            .load_commands
+            .iter()
+            .find_map(|c| match c.command {
+                CommandVariant::VersionMinMacosx(v) => Some(v.version),
+                CommandVariant::BuildVersion(v) => Some(v.minos),
+                _ => None,
+            })
+            .unwrap();
+        Self::from(packed)
+    }
+}
+
+impl PartialEq for Version {
+    fn eq(&self, other: &Self) -> bool {
+        self.major == other.major && self.minor == other.minor && self.patch == other.patch
+    }
 }
 
 if_std! {
@@ -52,14 +90,7 @@ if_std! {
             Some(self.cmp(other))
         }
     }
-}
 
-impl PartialEq for Version {
-    fn eq(&self, other: &Self) -> bool {
-        self.major == other.major && self.minor == other.minor && self.patch == other.patch
-    }
-}
-if_std! {
     impl FromStr for Version {
         type Err = Error;
 
@@ -78,39 +109,7 @@ if_std! {
             })
         }
     }
-}
 
-impl From<u32> for Version {
-    fn from(packed: u32) -> Self {
-        // X.Y.Z is encoded in nibbles xxxx.yy.zz
-        // 12.6 = 0b0000_0000_0000_1100_0000_0110_0000_0000
-        let major = (packed & 0b1111_1111_1111_1111_0000_0000_0000_0000u32) >> 16;
-        let minor = (packed & 0b0000_0000_0000_0000_1111_1111_0000_0000u32) >> 8;
-        let patch = (packed & 0b0000_0000_0000_0000_0000_0000_1111_1111u32) >> 0;
-        Self {
-            major,
-            minor,
-            patch,
-        }
-    }
-}
-
-impl From<MachO<'_>> for Version {
-    fn from(b: MachO) -> Self {
-        let packed = b
-            .load_commands
-            .iter()
-            .find_map(|c| match c.command {
-                CommandVariant::VersionMinMacosx(v) => Some(v.version),
-                CommandVariant::BuildVersion(v) => Some(v.minos),
-                _ => None,
-            })
-            .unwrap();
-        Self::from(packed)
-    }
-}
-
-if_std! {
     impl From<Mach<'_>> for Version {
         fn from(b: Mach) -> Self {
             match b {
